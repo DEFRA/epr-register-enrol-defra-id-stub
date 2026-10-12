@@ -1,7 +1,5 @@
-import { oidcBasePath } from '#/server/oidc/oidc-config.js'
-
 function roleNameBase(relationship) {
-  return `${oidcBasePath}/register/${relationship.userId}/relationship/${relationship.relationshipId}`
+  return `/register/${relationship.userId}/relationship/${relationship.relationshipId}`
 }
 
 function addRoleNamePath(relationship, queryString) {

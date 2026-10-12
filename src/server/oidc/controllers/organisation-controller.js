@@ -1,6 +1,5 @@
 import * as crypto from 'crypto'
 import { getSession, setSession } from '#/server/oidc/helpers/session-store.js'
-import { oidcBasePath } from '#/server/oidc/oidc-config.js'
 import { findRelationships } from '#/server/registration/helpers/find-relationships.js'
 
 const showOrganisationPickerController = {
@@ -55,7 +54,7 @@ const showOrganisationPickerController = {
     return h.view('oidc/views/organisation-picker', {
       pageTitle: 'Choose a business',
       heading: 'Choose a business',
-      action: `${oidcBasePath}/organisations`,
+      action: `/organisations`,
       sessionId,
       organisationItems,
       csrfToken: crypto.randomUUID()

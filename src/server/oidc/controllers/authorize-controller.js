@@ -2,6 +2,7 @@ import Joi from 'joi'
 
 import { config } from '#/config/config.js'
 import { buildErrorDetails } from '#/server/common/helpers/build-error-details.js'
+import { getExternalBaseUrl } from '#/server/oidc/helpers/base-urls.js'
 import { renderLoginPage } from '#/server/oidc/helpers/render-login-page.js'
 import { loginFormValidation } from '#/server/oidc/helpers/schemas/login-form-validation.js'
 import { loginValidation } from '#/server/oidc/helpers/schemas/login-validation.js'
@@ -12,41 +13,68 @@ import {
   findUser
 } from '#/server/oidc/helpers/users.js'
 import { validateScope } from '#/server/oidc/helpers/validate-scope.js'
-import { oidcBasePath, oidcConfig } from '#/server/oidc/oidc-config.js'
+import { oidcConfig } from '#/server/oidc/oidc-config.js'
 import { findRelationships } from '#/server/registration/helpers/find-relationships.js'
 import { registrationAction } from '#/server/registration/helpers/registration-paths.js'
 
-const appBaseUrl = config.get('appBaseUrl')
-
+// Checks an authorization request against the one client the stub serves.
+// Returns an error message, or null when the request is acceptable.
 function validateOidcRequest(
-  { scope, clientId, responseType, codeChallengeMethod },
+  {
+    clientId,
+    redirectUri,
+    responseType,
+    scope,
+    codeChallenge,
+    codeChallengeMethod
+  },
   logger
 ) {
-  const unsupportedScopes = validateScope(scope)
-  if (unsupportedScopes.length > 0) {
-    logger.error(`Unsupported scopes ${unsupportedScopes.join(',')}`)
-    return `Unsupported scopes ${unsupportedScopes.join(',')}`
+  if (clientId !== oidcConfig.clientId) {
+    logger.warn('authorize: unknown client_id')
+    return 'Unknown client_id'
   }
 
-  if (clientId !== oidcConfig.clientId) {
-    logger.warn(`Invalid client ID ${clientId}`)
+  if (redirectUri !== oidcConfig.redirectUri) {
+    logger.warn('authorize: redirect_uri is not registered for the client')
+    return 'Invalid redirect_uri'
   }
 
   if (!oidcConfig.responseTypesSupported.includes(responseType)) {
-    logger.error(`Invalid response type ${responseType}`)
-    return `Unsupported response type ${responseType}`
+    return `Unsupported response_type ${responseType}`
+  }
+
+  const unsupportedScopes = validateScope(scope)
+  if (unsupportedScopes.length > 0) {
+    return `Unsupported scopes ${unsupportedScopes.join(',')}`
+  }
+
+  if (!scope.split(' ').includes('openid')) {
+    return 'scope must include openid'
   }
 
   if (
-    codeChallengeMethod &&
+    !codeChallenge ||
     !oidcConfig.codeChallengeMethodsSupported.includes(codeChallengeMethod)
   ) {
-    logger.error(`Invalid code challenge method ${codeChallengeMethod}`)
-    return `Unsupported code_challenge_method  ${codeChallengeMethod}`
+    return 'PKCE is required: send code_challenge with code_challenge_method S256'
   }
 
   return null
 }
+
+const toOidcRequest = (params) => ({
+  clientId: params.client_id,
+  redirectUri: params.redirect_uri,
+  responseType: params.response_type,
+  scope: params.scope,
+  state: params.state,
+  nonce: params.nonce,
+  serviceId: params.serviceId || undefined,
+  codeChallenge: params.code_challenge,
+  codeChallengeMethod: params.code_challenge_method,
+  forceReselection: params.forceReselection === 'true'
+})
 
 // Rebuilds the original /authorize URL from a POST /login payload's hidden
 // OIDC fields, so "New registration" (reached from a re-rendered login form)
@@ -71,7 +99,7 @@ function rebuildOriginalAuthorizeUrl(payload) {
     return null
   }
 
-  const url = new URL(`${appBaseUrl}${oidcBasePath}/authorize`)
+  const url = new URL(`${getExternalBaseUrl()}/authorize`)
   url.searchParams.set('client_id', clientId)
   url.searchParams.set('response_type', responseType)
   url.searchParams.set('redirect_uri', redirectUri)
@@ -95,31 +123,10 @@ function rebuildOriginalAuthorizeUrl(payload) {
   return url.toString()
 }
 
-async function completeAuthorization(request, h, user, params) {
-  const {
-    scope,
-    nonce,
-    codeChallenge,
-    codeChallengeMethod,
-    forceReselection,
-    originalAuthorizeUrl,
-    redirectUri,
-    state
-  } = params
-
+async function completeAuthorization(request, h, user, oidcRequest) {
   request.yar.set('authenticated_user', user.email)
 
-  const session = await newSession(
-    scope,
-    nonce,
-    user,
-    codeChallenge,
-    codeChallengeMethod,
-    forceReselection,
-    originalAuthorizeUrl,
-    redirectUri,
-    state
-  )
+  const session = await newSession({ ...oidcRequest, user })
 
   const relationships = await findRelationships(
     user.userId,
@@ -131,24 +138,41 @@ async function completeAuthorization(request, h, user, params) {
       { userId: user.userId, relationshipCount: relationships.length },
       'User has relationships, redirect to organisation picker'
     )
-    return h.redirect(
-      `${oidcBasePath}/organisations?sessionId=${session.sessionId}`
-    )
+    return h.redirect(`/organisations?sessionId=${session.sessionId}`)
   }
 
-  const location = new URL(redirectUri)
+  const location = new URL(oidcRequest.redirectUri)
   location.searchParams.append('code', session.sessionId)
-  location.searchParams.append('state', state)
-  request.logger.info(
-    `Authenticated, redirect to location: [${location.toString()}]`
-  )
+  location.searchParams.append('state', oidcRequest.state)
+  request.logger.info('Authenticated, redirecting to the client')
   return h.redirect(location.toString())
 }
 
 const authorizeController = {
   handler: async (request, h) => {
-    const redirectUri = request.query?.redirect_uri
-    const originalAuthorizeUrl = `${appBaseUrl}${request.path}${request.url.search}`
+    const validationResult = loginValidation.validate(request.query, {
+      abortEarly: false
+    })
+
+    if (validationResult?.error) {
+      request.logger.warn(validationResult?.error, 'Login query error')
+      const errorDetails = buildErrorDetails(validationResult.error.details)
+
+      const errorMessages = Object.entries(errorDetails)
+        .map(([field, error]) => `${field}: ${error.message}`)
+        .join(', ')
+
+      return h.response(`Unsupported payload: ${errorMessages}`).code(400)
+    }
+
+    // Reject a bad authorization request before showing any login page.
+    const oidcRequest = toOidcRequest(request.query)
+    const validationError = validateOidcRequest(oidcRequest, request.logger)
+    if (validationError) {
+      return h.response(validationError).code(400)
+    }
+
+    const originalAuthorizeUrl = `${getExternalBaseUrl()}${request.path}${request.url.search}`
 
     // Check for cached authenticated user in session (SSO behavior)
     const cachedUserEmail = request.yar.get('authenticated_user')
@@ -185,59 +209,15 @@ const authorizeController = {
       })
     }
 
-    const validationResult = loginValidation.validate(request.query, {
-      abortEarly: false
-    })
-
-    if (validationResult?.error) {
-      request.logger.warn(validationResult?.error, 'Login query error')
-      const errorDetails = buildErrorDetails(validationResult.error.details)
-
-      request.yar.flash('validationFailure', {
-        formValues: request.query,
-        formErrors: errorDetails
-      })
-
-      const errorMessages = Object.entries(errorDetails)
-        .map(([field, error]) => `${field}: ${error.message}`)
-        .join(', ')
-
-      return h.response(`Unsupported payload: ${errorMessages}`).code(400)
-    }
-
     // Use cached user email if no user query param provided (SSO behavior)
     const loginUser = queryUser || cachedUserEmail
-    const clientId = request.query.client_id
-    const responseType = request.query.response_type
-    const { scope, state } = request.query
-    const codeChallengeMethod = request.query.code_challenge_method
-
-    const validationError = validateOidcRequest(
-      { scope, clientId, responseType, codeChallengeMethod },
-      request.logger
-    )
-    if (validationError) {
-      return h.response(validationError).code(400)
-    }
-
     const user = await findUser(loginUser, request.registrationsStore)
     if (user === undefined) {
-      request.logger.error(`Invalid user selected ${request.query.user}`)
+      request.logger.error('Invalid user selected')
       return h.response(`Invalid user selection!`).code(400)
     }
 
-    const forceReselection = request.query.forceReselection === 'true'
-
-    return completeAuthorization(request, h, user, {
-      scope,
-      nonce: request.query.nonce,
-      codeChallenge: request.query.code_challenge,
-      codeChallengeMethod,
-      forceReselection,
-      originalAuthorizeUrl,
-      redirectUri,
-      state
-    })
+    return completeAuthorization(request, h, user, oidcRequest)
   }
 }
 
@@ -254,9 +234,7 @@ const loginController = {
     const allUsers = await findAllUsers(request.registrationsStore)
 
     if (allUsers.length === 0) {
-      request.logger.info(
-        `No users found, redirect to register page: [${request.url}]`
-      )
+      request.logger.info('No users found, redirect to register page')
       return h.redirect(registrationAction(redirectUri))
     }
 
@@ -296,7 +274,7 @@ const loginSubmitController = {
     const user = await findUser(payload.email, request.registrationsStore)
 
     if (!user) {
-      request.logger.warn({ email: payload.email }, 'Invalid login attempt')
+      request.logger.warn('Invalid login attempt')
       return renderLoginPage(h, {
         oidcParams: payload,
         allUsers: temporaryUsers,
@@ -308,43 +286,27 @@ const loginSubmitController = {
       })
     }
 
-    const {
-      client_id: clientId,
-      response_type: responseType,
-      redirect_uri: redirectUri,
-      state,
-      scope,
-      nonce,
-      code_challenge: codeChallenge,
-      code_challenge_method: codeChallengeMethod,
-      forceReselection
-    } = payload
+    const oidcRequest = toOidcRequest(payload)
 
     // Standalone login (not part of an active OIDC request, e.g. from the
     // home page) - just establish the SSO session and go home.
-    if (!clientId || !responseType || !redirectUri || !state || !scope) {
+    if (
+      !oidcRequest.clientId ||
+      !oidcRequest.responseType ||
+      !oidcRequest.redirectUri ||
+      !oidcRequest.state ||
+      !oidcRequest.scope
+    ) {
       request.yar.set('authenticated_user', user.email)
       return h.redirect('/')
     }
 
-    const validationError = validateOidcRequest(
-      { scope, clientId, responseType, codeChallengeMethod },
-      request.logger
-    )
+    const validationError = validateOidcRequest(oidcRequest, request.logger)
     if (validationError) {
       return h.response(validationError).code(400)
     }
 
-    return completeAuthorization(request, h, user, {
-      scope,
-      nonce,
-      codeChallenge,
-      codeChallengeMethod,
-      forceReselection: forceReselection === 'true',
-      originalAuthorizeUrl: `${appBaseUrl}${oidcBasePath}/authorize`,
-      redirectUri,
-      state
-    })
+    return completeAuthorization(request, h, user, oidcRequest)
   }
 }
 

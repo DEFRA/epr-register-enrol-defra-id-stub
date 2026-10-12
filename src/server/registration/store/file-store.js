@@ -6,10 +6,11 @@ function normalizeEmail(email) {
     .toLowerCase()
 }
 
-// data/<env>/users.json only supplies organisationId per user - the rest of the
+// The USERS_FILE_PATH file only supplies organisationId (and optionally
+// organisationName) per user - the rest of the
 // relationship shape is generated so the token/organisation-picker code
 // (which expects the full DEFRA ID relationship object) keeps working.
-function buildRelationships(organisationId) {
+function buildRelationships(organisationId, organisationName) {
   if (!organisationId) {
     return []
   }
@@ -18,7 +19,7 @@ function buildRelationships(organisationId) {
     {
       relationshipId: randomUUID(),
       organisationId,
-      organisationName: 'Test Organisation',
+      organisationName: organisationName ?? 'Test Organisation',
       relationshipRole: 'Employee',
       roleName: 'Full Access',
       roleStatus: '1'
@@ -31,8 +32,8 @@ class FileUsersStore {
     this.usersById = new Map()
     this.userIdByEmail = new Map()
 
-    for (const { organisationId, ...rest } of users) {
-      const relationships = buildRelationships(organisationId)
+    for (const { organisationId, organisationName, ...rest } of users) {
+      const relationships = buildRelationships(organisationId, organisationName)
       const profile = {
         loa: '1',
         aal: '1',

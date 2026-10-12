@@ -15,11 +15,6 @@ const isProduction = process.env.NODE_ENV === 'production'
 const isTest = process.env.NODE_ENV === 'test'
 const isDevelopment = process.env.NODE_ENV === 'development'
 
-// Picks which data/<usersEnv>/users.json to load permanent stub users from -
-// distinct from NODE_ENV, which stays production/development/test regardless
-// of which deployed CDP environment (test, ext-test, prod, ...) this is.
-const usersEnv = process.env.USERS_ENV ?? 'local'
-
 convict.addFormats(convictFormatWithValidator)
 
 export const config = convict({
@@ -122,12 +117,6 @@ export const config = convict({
   },
   session: {
     cache: {
-      engine: {
-        doc: 'backend cache is written to',
-        format: ['redis', 'memory'],
-        default: isProduction ? 'redis' : 'memory',
-        env: 'SESSION_CACHE_ENGINE'
-      },
       name: {
         doc: 'server side session cache name',
         format: String,
@@ -163,45 +152,6 @@ export const config = convict({
       }
     }
   },
-  redis: {
-    host: {
-      doc: 'Redis cache host',
-      format: String,
-      default: '127.0.0.1',
-      env: 'REDIS_HOST'
-    },
-    username: {
-      doc: 'Redis cache username',
-      format: String,
-      default: '',
-      env: 'REDIS_USERNAME'
-    },
-    password: {
-      doc: 'Redis cache password',
-      format: '*',
-      default: '',
-      sensitive: true,
-      env: 'REDIS_PASSWORD'
-    },
-    keyPrefix: {
-      doc: 'Redis cache key prefix name used to isolate the cached results across multiple clients',
-      format: String,
-      default: 'epr-register-enrol-defra-id-stub:',
-      env: 'REDIS_KEY_PREFIX'
-    },
-    useSingleInstanceCache: {
-      doc: 'Connect to a single instance of redis instead of a cluster.',
-      format: Boolean,
-      default: !isProduction,
-      env: 'USE_SINGLE_INSTANCE_CACHE'
-    },
-    useTLS: {
-      doc: 'Connect to redis using TLS',
-      format: Boolean,
-      default: isProduction,
-      env: 'REDIS_TLS'
-    }
-  },
   nunjucks: {
     watch: {
       doc: 'Reload templates when they are changed.',
@@ -222,106 +172,67 @@ export const config = convict({
       env: 'TRACING_HEADER'
     }
   },
-  appBaseUrl: {
-    doc: 'Application base URL for after we login',
-    format: String,
-    default: 'http://localhost:3000',
-    env: 'APP_BASE_URL'
-  },
-  usersEnv: {
-    doc: 'Name of the data/<name>/users.json folder permanent stub users are loaded from, unless usersFile/USERS_FILE_PATH overrides it with an absolute path.',
-    format: String,
-    default: usersEnv,
-    env: 'USERS_ENV'
-  },
   usersFile: {
-    doc: 'Path to the JSON file of permanent stub users (email/organisationId/profile). Defaults to data/<USERS_ENV>/users.json; set USERS_FILE_PATH to override with a specific file.',
+    doc: 'Optional JSON file of permanent stub users (userId, email, organisationId, organisationName). Unset means no permanent users: testers register their own.',
     format: String,
-    default: path.resolve(dirname, `../../data/${usersEnv}/users.json`),
+    nullable: true,
+    default: null,
     env: 'USERS_FILE_PATH'
   },
   registrationsStore: {
-    engine: {
-      doc: 'Ephemeral (temporary) registration store backend',
-      format: ['dynamodb', 'memory'],
-      default: process.env.REGISTRATIONS_STORE_ENGINE ?? 'memory',
-      env: 'REGISTRATIONS_STORE_ENGINE'
-    },
     ttl: {
-      doc: 'Ephemeral registration store item TTL in milliseconds',
+      doc: 'How long a registration made through the stub is kept, in milliseconds. Registrations are held in memory and are lost when the stub restarts.',
       format: Number,
       default: threeDaysMs,
       env: 'REGISTRATIONS_STORE_TTL'
     }
   },
-  aws: {
-    region: {
-      doc: 'AWS region for DynamoDB access',
+  stub: {
+    externalUrl: {
+      doc: 'Base URL browsers use to reach the stub. It is also the issuer, so it must match the iss the Operator Journey frontend expects.',
       format: String,
-      default: 'eu-west-2',
-      env: 'AWS_REGION'
+      default: 'http://localhost:3000',
+      env: 'STUB_EXTERNAL_URL'
     },
-    dynamoDb: {
-      endpoint: {
-        doc: 'DynamoDB endpoint for local development',
-        format: String,
-        default: isProduction ? null : 'http://127.0.0.1:4566',
-        nullable: true,
-        env: 'DYNAMODB_ENDPOINT'
-      }
-    }
-  },
-  dynamoDb: {
-    registrationsTableName: {
-      doc: 'Registrations DynamoDB table name',
+    internalUrl: {
+      doc: 'Base URL the Operator Journey frontend server uses for the token endpoint and the JWKS. Defaults to STUB_EXTERNAL_URL; set it when the frontend reaches the stub by a different host (for example inside Docker Compose).',
       format: String,
-      default: 'epr-register-enrol-defra-id-stub-registrations',
-      env: 'AWS_DYNAMODB_REGISTRATIONS_TABLE_NAME'
+      nullable: true,
+      default: null,
+      env: 'STUB_INTERNAL_URL'
     }
   },
   oidc: {
-    baseUrl: {
-      doc: 'Application base URL for OIDC config if different from APP_BASE_URL',
-      format: String,
-      default: null,
-      nullable: true,
-      env: 'OIDC_APP_BASE_URL'
-    },
-    stubInternalUrl: {
-      doc: 'Internal base URL for server-to-server OIDC endpoints (token, jwks, userinfo, issuer) and the token issuer. Defaults to the external base. Set this to the in-network stub URL when the external base is a per-stack localhost URL the browser uses.',
-      format: String,
-      default: null,
-      nullable: true,
-      env: 'STUB_INTERNAL_URL'
-    },
-    basePath: {
-      doc: 'the base path all oidc stubs will be served from',
-      format: String,
-      default: '/epr-register-enrol-defra-id-stub',
-      env: 'OIDC_BASE_PATH'
-    },
     clientId: {
-      doc: 'client id to use in the oidc stub',
+      doc: "The Operator Journey frontend's client id (its DEFRA_ID_CLIENT_ID). The only client the stub accepts.",
       format: String,
-      default: '63983fc2-cfff-45bb-8ec2-959e21062b9a',
-      env: 'OIDC_CLIENT_ID'
+      default: 'epr-register-enrol-frontend',
+      env: 'OJ_CLIENT_ID'
     },
     clientSecret: {
-      doc: 'the client secret key for the oidc stub',
+      doc: "The Operator Journey frontend's client secret (its DEFRA_ID_CLIENT_SECRET).",
       format: String,
-      default: 'test_value',
-      env: 'OIDC_CLIENT_SECRET'
+      default: 'operator-journey-stub-secret',
+      sensitive: true,
+      env: 'OJ_CLIENT_SECRET'
+    },
+    callbackUrl: {
+      doc: "The Operator Journey frontend's public base URL (its AUTH_CALLBACK_BASE_URL). The redirect and post-logout URIs are built from it.",
+      format: String,
+      default: 'http://localhost:3000',
+      env: 'CALLBACK_OJ_URL'
     },
     publicKeyBase64: {
-      doc: 'base 64 encoded public pem',
+      doc: 'Base64-encoded public signing key (PEM). Optional: without it a key pair is generated at boot.',
       format: String,
       default: undefined,
       env: 'OIDC_PUBLIC_KEY_B64'
     },
     privateKeyBase64: {
-      doc: 'base 64 encoded private pem',
+      doc: 'Base64-encoded private signing key (PEM). Set together with OIDC_PUBLIC_KEY_B64.',
       format: String,
       default: undefined,
+      sensitive: true,
       env: 'OIDC_PRIVATE_KEY_B64'
     },
     showLogin: {

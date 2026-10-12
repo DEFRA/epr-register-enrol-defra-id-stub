@@ -14,9 +14,8 @@ describe('sha256', () => {
 })
 
 describe('generateCodeChallenge', () => {
-  it('should return the codeVerifier as plain text in plain mode', () => {
-    const result = generateCodeChallenge('plain', 'foobarbaz')
-    expect(result).toBe('foobarbaz')
+  it('should return null in plain mode: only S256 is supported', () => {
+    expect(generateCodeChallenge('plain', 'foobarbaz')).toBeNull()
   })
 
   it('should return the codeVerifier as a sha256 encoded codeVerifier in S256 mode', () => {

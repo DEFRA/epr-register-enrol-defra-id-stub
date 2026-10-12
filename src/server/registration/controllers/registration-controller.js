@@ -1,7 +1,6 @@
 import * as crypto from 'crypto'
 import Joi from 'joi'
 
-import { oidcBasePath } from '#/server/oidc/oidc-config.js'
 import { registrationValidation } from '#/server/registration/helpers/schemas/registration-validation.js'
 import { findRegistration } from '#/server/registration/helpers/find-registration.js'
 import {
@@ -152,7 +151,7 @@ const showExistingRegistrationController = {
 
     if (!registration) {
       request.logger.error({ userId }, 'Registration not found')
-      return h.redirect(oidcBasePath)
+      return h.redirect('/')
     }
 
     const { formValues, formErrors } = readValidationFailure(request)
@@ -202,7 +201,7 @@ const updateRegistrationController = {
 
     if (!registration) {
       request.logger.error({ userId }, 'Registration not found')
-      return h.redirect(oidcBasePath)
+      return h.redirect('/')
     }
 
     const validationResult = registrationValidation.validate(payload, {

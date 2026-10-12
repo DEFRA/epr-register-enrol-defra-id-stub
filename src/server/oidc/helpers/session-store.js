@@ -1,26 +1,18 @@
 import * as crypto from 'crypto'
-import jsonwebtoken from 'jsonwebtoken'
-import { createLogger } from '#/server/common/helpers/logging/logger.js'
 import { config } from '#/config/config.js'
-
-const logger = createLogger()
 
 let sessionCache
 
 // Must be called once during server startup (see oidc plugin register) before
-// any of the functions below are used. Backed by the same cache engine as
-// the yar cookie cache (Redis when deployed) so sessions survive restarts
-// and are shared across replicas - a plain in-memory object would not be.
+// any of the functions below are used. A session is created at /authorize and
+// its id is the authorization code. It lives in the server's in-memory cache,
+// so the stub must run as a single instance.
 function initSessionStore(server, expiresIn) {
   sessionCache = server.cache({
     cache: config.get('session.cache.name'),
     segment: 'oidc-sessions',
     expiresIn
   })
-}
-
-function getSessionId() {
-  return crypto.randomUUID()
 }
 
 async function getSession(sessionId) {
@@ -35,49 +27,38 @@ async function setSession(sessionId, session) {
   return session
 }
 
-async function newSession(
+async function newSession({
+  clientId,
   scope,
   nonce,
+  serviceId,
   user,
-  challenge,
-  challengeMethod,
+  codeChallenge,
+  codeChallengeMethod,
   forceReselection,
-  originalAuthorizeUrl,
   redirectUri,
   state
-) {
-  const id = getSessionId()
+}) {
+  const id = crypto.randomUUID()
 
   const session = {
     sessionId: id,
+    clientId,
     scopes: scope.split(' '),
-    oidcNonce: nonce,
+    nonce,
+    serviceId,
     user,
     granted: false,
-    codeChallenge: challenge,
-    codeChallengeMethod: challengeMethod,
+    codeChallenge,
+    codeChallengeMethod,
     forceReselection,
-    originalAuthorizeUrl: originalAuthorizeUrl || '',
-    redirectUri: redirectUri || '',
-    state: state || ''
+    redirectUri,
+    state
   }
 
   await setSession(id, session)
 
-  logger.info(`Creating a new session ${JSON.stringify(session)}`)
-
   return session
 }
 
-async function getSessionByToken(token) {
-  const decodedToken = jsonwebtoken.decode(token)
-  return getSession(decodedToken?.jti)
-}
-
-export {
-  getSession,
-  setSession,
-  getSessionByToken,
-  newSession,
-  initSessionStore
-}
+export { getSession, setSession, newSession, initSessionStore }

@@ -1,59 +1,15 @@
-version: '3.4'
+# Runs the stub on its own at http://localhost:3200, seeded with the local
+# users in data/local/users.json. Point the Operator Journey frontend at
+# http://localhost:3200/.well-known/openid-configuration.
 services:
-  floci:
-    image: hectorvent/floci:latest-aws
-    ports:
-      - '4566:4566'
-    env_file:
-      - 'compose/aws.env'
-    environment:
-      FLOCI_DEFAULT_REGION: eu-west-2
-    volumes:
-      - ./compose/floci/start.d:/etc/floci/init/start.d:ro
-    networks:
-      - cdp-tenant
-
-  redis:
-    image: redis:7.2.3-alpine3.18
-    ports:
-      - '6379:6379'
-    networks:
-      - cdp-tenant
-
-  ################################################################################
-
   epr-register-enrol-defra-id-stub:
     build:
       context: ./
       target: development
     ports:
-      - '3000:3000'
-    links:
-      - 'floci:floci'
-      - 'redis:redis'
-    depends_on:
-      floci:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    env_file:
-      - 'compose/aws.env'
+      - '3200:3000'
     environment:
       PORT: 3000
       NODE_ENV: development
-      REDIS_HOST: redis
-      SESSION_COOKIE_SECURE: false
-      USE_SINGLE_INSTANCE_CACHE: true
-      REDIS_TLS: false
-    networks:
-      - cdp-tenant
-
-
-################################################################################
-
-volumes:
-  mongodb-data:
-
-networks:
-  cdp-tenant:
-    driver: bridge
+      STUB_EXTERNAL_URL: http://localhost:3200
+      USERS_FILE_PATH: ./data/local/users.json

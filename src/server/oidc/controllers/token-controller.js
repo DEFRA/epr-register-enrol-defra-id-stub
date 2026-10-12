@@ -1,134 +1,96 @@
-import { getInternalBaseUrl } from '#/server/oidc/helpers/base-urls.js'
-import {
-  generateIDToken,
-  generateRefreshToken,
-  generateToken
-} from '#/server/oidc/helpers/oidc-crypto.js'
-import {
-  getSession,
-  getSessionByToken,
-  setSession
-} from '#/server/oidc/helpers/session-store.js'
+import { generateTokens } from '#/server/oidc/helpers/oidc-crypto.js'
+import { getSession, setSession } from '#/server/oidc/helpers/session-store.js'
 import { validateCodeChallenge } from '#/server/oidc/helpers/validate-code-challenge.js'
 import { oidcConfig } from '#/server/oidc/oidc-config.js'
+
+// RFC 6749 section 5.2 error response.
+const tokenError = (h, error, description, statusCode = 400) =>
+  h
+    .response({ error, error_description: description })
+    .header('Cache-Control', 'no-store')
+    .code(statusCode)
+
+// Codes are single use: the first exchange marks the session granted, even if
+// it then fails, so a code can never be retried.
+async function redeemCode(code) {
+  const session = await getSession(code)
+  if (!session || session.granted) {
+    return null
+  }
+  await setSession(code, { ...session, granted: true })
+  return session
+}
 
 const tokenController = {
   handler: async (request, h) => {
     const logger = request.logger
+    const {
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: grantType,
+      code,
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier
+    } = request.payload ?? {}
 
-    logger.info(JSON.stringify(request.payload))
-    const clientId = request.payload.client_id
-    const clientSecret = request.payload.client_secret
-    const grantType = request.payload.grant_type
-    const code = request.payload.code
-    const refreshToken = request.payload.refresh_token
-    const codeVerifier = request.payload.code_verifier
-
-    if (clientId !== oidcConfig.clientId) {
-      logger.warn(`Invalid client id ${clientId}`)
-      // return h.response(`Invalid client id ${clientId}`).code(401)
+    if (
+      clientId !== oidcConfig.clientId ||
+      clientSecret !== oidcConfig.clientSecret
+    ) {
+      logger.warn('token: client authentication failed')
+      return tokenError(
+        h,
+        'invalid_client',
+        'Client authentication failed',
+        401
+      )
     }
 
-    if (clientSecret !== oidcConfig.clientSecret) {
-      logger.error(`Invalid client secret`)
-      return h.response(`Invalid client secret`).code(401)
+    if (grantType !== 'authorization_code') {
+      return tokenError(
+        h,
+        'unsupported_grant_type',
+        'Only authorization_code is supported'
+      )
     }
 
-    // get the session depending on the grant type
-    let result = null
-
-    if (grantType === 'authorization_code') {
-      // logger.info('handling authorization code')
-      result = await getSessionForAuthorizationCode(code)
-      const { valid, err } = validateCodeChallenge(result.session, codeVerifier)
-      if (!valid) {
-        logger.error(err, 'invalid code challenge')
-        return h.response(err).code(401)
-      }
-    } else if (grantType === 'refresh_token') {
-      // logger.info('handling refresh token code')
-      result = await getSessionForRefreshToken(refreshToken)
-    } else {
-      logger.error(`invalid grant type ${grantType}`)
-      return h.response(`invalid grant type ${grantType}`).code(400)
+    const session = await redeemCode(code)
+    if (!session) {
+      return tokenError(h, 'invalid_grant', 'Unknown or already used code')
     }
 
-    const { session, valid } = result
+    if (session.clientId !== clientId || session.redirectUri !== redirectUri) {
+      return tokenError(
+        h,
+        'invalid_grant',
+        'client_id or redirect_uri does not match the authorization request'
+      )
+    }
 
+    const { valid, err } = validateCodeChallenge(session, codeVerifier)
     if (!valid) {
-      logger.error('session was missing or invalid')
-      return h
-        .response(`invalid code/token for grant type ${grantType}`)
-        .code(400)
+      logger.warn({ err }, 'token: PKCE verification failed')
+      return tokenError(h, 'invalid_grant', err)
     }
 
-    // build the token response
-
-    const tokenResponse = {
-      token_type: 'bearer',
-      expires_in: oidcConfig.ttl
-    }
-
-    // copy over the refresh token if its not there
-    // unsure if we still need the !== string 'null' check anymore
-    if (refreshToken) {
-      logger.info(`refresh token ${refreshToken}`)
-      tokenResponse.refresh_token = refreshToken
-    }
-
-    const host = getInternalBaseUrl()
-
-    tokenResponse.access_token = await generateToken(
+    const tokens = await generateTokens(
       request.keys,
       session,
-      host,
       request.registrationsStore
     )
-
-    if (session.scopes.includes('openid')) {
-      tokenResponse.id_token = await generateIDToken(
-        request.keys,
-        session,
-        host,
-        request.registrationsStore
-      )
+    if (!tokens) {
+      return tokenError(h, 'invalid_grant', 'The user no longer exists')
     }
-    if (session.scopes.includes('offline_access')) {
-      logger.info('generating a refresh token')
-      tokenResponse.refresh_token = await generateRefreshToken(
-        request.keys,
-        session,
-        host,
-        request.registrationsStore
-      )
-    }
-
-    logger.info(tokenResponse)
 
     return h
-      .response(tokenResponse)
-      .header('Cache-Control', 'no-cache, no-store, must-revalidate')
+      .response({
+        token_type: 'Bearer',
+        expires_in: oidcConfig.ttl,
+        access_token: tokens.accessToken,
+        id_token: tokens.idToken
+      })
+      .header('Cache-Control', 'no-store')
       .code(200)
-  }
-}
-
-async function getSessionForAuthorizationCode(code) {
-  const session = await getSession(code)
-  if (!session || session.granted) {
-    return { session: null, valid: false }
-  }
-  await setSession(code, { ...session, granted: true })
-  return {
-    session,
-    valid: true
-  }
-}
-
-async function getSessionForRefreshToken(refreshToken) {
-  const session = await getSessionByToken(refreshToken)
-  return {
-    session,
-    valid: session !== undefined
   }
 }
 

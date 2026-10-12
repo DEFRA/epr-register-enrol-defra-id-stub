@@ -1,28 +1,24 @@
 import { validateScope } from '#/server/oidc/helpers/validate-scope.js'
+import { oidcConfig } from '#/server/oidc/oidc-config.js'
 
 describe('validateScope function', () => {
-  it('should return an empty array for valid scopes', () => {
-    const validScope = 'profile email'
-    expect(validateScope(validScope)).toEqual([])
+  it('should accept the scopes the Operator Journey sends, including its bare client id', () => {
+    const scope = `openid offline_access ${oidcConfig.clientId}`
+    expect(validateScope(scope)).toEqual([])
   })
 
   it('should return unsupported scopes', () => {
-    const invalidScope = 'profile address'
-    expect(validateScope(invalidScope)).toEqual(['address'])
+    expect(validateScope('openid profile address')).toEqual([
+      'profile',
+      'address'
+    ])
   })
 
   it('should handle empty input', () => {
-    const emptyScope = ''
-    expect(validateScope(emptyScope)).toEqual([])
+    expect(validateScope('')).toEqual([])
   })
 
   it('should handle single valid scope', () => {
-    const singleValidScope = 'openid'
-    expect(validateScope(singleValidScope)).toEqual([])
-  })
-
-  it('should handle single invalid scope', () => {
-    const singleInvalidScope = 'address'
-    expect(validateScope(singleInvalidScope)).toEqual(['address'])
+    expect(validateScope('openid')).toEqual([])
   })
 })

@@ -2,7 +2,6 @@ import Joi from 'joi'
 
 import { findRegistration } from '#/server/registration/helpers/find-registration.js'
 import { findRelationships } from '#/server/registration/helpers/find-relationships.js'
-import { oidcBasePath } from '#/server/oidc/oidc-config.js'
 import {
   authorizePath,
   registrationAction,
@@ -32,7 +31,7 @@ const summaryRegistrationController = {
 
     if (!registration) {
       request.logger.error({ userId }, 'Registration not found')
-      return h.redirect(oidcBasePath)
+      return h.redirect('/')
     }
 
     const relationships = await findRelationships(

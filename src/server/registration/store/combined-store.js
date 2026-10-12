@@ -25,7 +25,7 @@ class CombinedRegistrationsStore {
   }
 
   // Temporary (ephemeral) registrations only - deliberately excludes
-  // permanent data/<env>/users.json users, who should never be advertised on the
+  // permanent USERS_FILE_PATH users, who should never be advertised on the
   // login page (their emails are fixed, out-of-band knowledge).
   async listEphemeralRegistrations() {
     return this.ephemeralStore.listRegistrations()
@@ -78,7 +78,7 @@ class CombinedRegistrationsStore {
     return this.ephemeralStore.deleteAllRelationships(userId)
   }
 
-  // True if email belongs to a permanent (data/<env>/users.json) user - temporary
+  // True if email belongs to a permanent (USERS_FILE_PATH) user - temporary
   // registrations must never be allowed to shadow one of these.
   async isPermanentUserEmail(email) {
     return Boolean(await this.permanentStore.findRegistrationByEmail(email))

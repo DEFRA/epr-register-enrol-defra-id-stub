@@ -14,7 +14,6 @@ import {
   flashValidationFailure,
   readValidationFailure
 } from '#/server/registration/helpers/validation-failure.js'
-import { oidcBasePath } from '#/server/oidc/oidc-config.js'
 
 const addRoleNameController = {
   options: {
@@ -36,7 +35,7 @@ const addRoleNameController = {
 
     if (!registration) {
       request.logger.error({ userId }, 'Registration not found')
-      return h.redirect(oidcBasePath)
+      return h.redirect('/')
     }
 
     const relationship = await findRelationship(
@@ -98,7 +97,7 @@ const removeRoleNameController = {
 
     if (!registration) {
       request.logger.error({ userId }, 'Registration not found')
-      return h.redirect(oidcBasePath)
+      return h.redirect('/')
     }
 
     const relationship = await findRelationship(
@@ -149,7 +148,7 @@ const showAddRoleNameController = {
 
     if (!registration) {
       request.logger.error({ userId }, 'Registration not found')
-      return h.redirect(oidcBasePath)
+      return h.redirect('/')
     }
 
     const relationship = await findRelationship(

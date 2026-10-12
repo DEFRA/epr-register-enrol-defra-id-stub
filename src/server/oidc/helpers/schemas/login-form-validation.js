@@ -15,7 +15,9 @@ const loginFormValidation = Joi.object({
   code_challenge: Joi.string().optional(),
   code_challenge_method: Joi.string().optional(),
   forceReselection: Joi.string().optional(),
-  serviceId: Joi.string().optional()
+  // The Operator Journey sends an empty serviceId when DEFRA_ID_SERVICE_ID
+  // is unset.
+  serviceId: Joi.string().allow('').optional()
 })
 
 export { loginFormValidation }

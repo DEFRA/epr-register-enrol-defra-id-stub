@@ -1,4 +1,5 @@
 import { createLogger } from '#/server/common/helpers/logging/logger.js'
+import { getExternalBaseUrl } from '#/server/oidc/helpers/base-urls.js'
 import { oidcConfig } from '#/server/oidc/oidc-config.js'
 import { randomUUID } from 'node:crypto'
 import { findRegistrationByEmail } from '#/server/registration/helpers/find-registration.js'
@@ -6,22 +7,25 @@ import { findRelationships } from '#/server/registration/helpers/find-relationsh
 
 const logger = createLogger()
 
-export async function generateDefraIdToken(session, host, store) {
-  const email = session.user?.email ?? session.user?.preferred_username
-  const registration = await findRegistrationByEmail(email, store)
-  const relationships = await findRelationships(registration?.userId, store)
-
+// The Defra ID claims the Operator Journey reads: sub, email, firstName,
+// lastName, contactId, currentRelationshipId, relationships and roles.
+// Each relationship is "relationshipId:organisationId:organisationName:..."
+// and the Operator Journey takes the organisationId (segment 1) to match the
+// Defra organisation Re-Ex links to the operator's organisation.
+export async function generateDefraIdToken(session, store) {
+  const email = session.user?.email
   if (!email) {
     logger.warn('No email found for user')
     return null
   }
-  logger.debug({ email }, 'Email found')
 
+  const registration = await findRegistrationByEmail(email, store)
   if (!registration) {
     logger.warn('No registration found for user email')
     return null
   }
-  logger.info('Registration found')
+
+  const relationships = await findRelationships(registration.userId, store)
 
   const relationshipIdsRow = relationships.map(
     (r) =>
@@ -36,22 +40,23 @@ export async function generateDefraIdToken(session, host, store) {
   const currentRelationshipId =
     session.relationshipId || registration.currentRelationshipId
 
-  // Calculate token timestamps (in seconds)
+  // Token timestamps, in seconds
   const now = Math.floor(Date.now() / 1000)
-  const expiresAt = now + oidcConfig.ttl
 
   return {
-    id: registration.userId,
+    iss: getExternalBaseUrl(),
     aud: oidcConfig.clientId,
     sub: registration.userId,
-    iss: host + oidcConfig.issuerBase, // issuer
-    nbf: now, // not before - token is valid from now
-    exp: expiresAt, // expiration - token expires after ttl seconds
-    jti: session.sessionId,
+    iat: now,
+    nbf: now,
+    exp: now + oidcConfig.ttl,
+    jti: randomUUID(),
     correlationId: randomUUID(),
     sessionId: session.sessionId,
     contactId: registration.contactId,
-    serviceId: 'e84a398b-8104-47a2-86ae-de1168e4132f', // TODO: confirm where this should be set.
+    // Echoes the serviceId the client sent to /authorize, as Defra ID does.
+    // Omitted when the client sent none.
+    serviceId: session.serviceId,
     firstName: registration.firstName,
     lastName: registration.lastName,
     email,

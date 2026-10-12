@@ -10,96 +10,87 @@ import {
   showOrganisationPickerController
 } from '#/server/oidc/controllers/organisation-controller.js'
 import { tokenController } from '#/server/oidc/controllers/token-controller.js'
-import { userInfoController } from '#/server/oidc/controllers/user-info-controller.js'
 import { jwksController } from '#/server/oidc/controllers/well-known-jwks.js'
 import { openIdConfigurationController } from '#/server/oidc/controllers/well-known-openid-configuration.js'
 import {
-  getOrCreateSharedKeypair,
+  generateRandomKeypair,
   loadKeyPair
 } from '#/server/oidc/helpers/oidc-crypto.js'
 import { initSessionStore } from '#/server/oidc/helpers/session-store.js'
-import { oidcBasePath, oidcConfig } from '#/server/oidc/oidc-config.js'
+import { oidcConfig } from '#/server/oidc/oidc-config.js'
+
+// The stub runs as a single instance and keeps everything in memory, so a
+// key pair generated at boot is enough. A restart publishes a new key; the
+// Operator Journey refetches the JWKS when it sees an unknown kid.
+function resolveKeys(logger) {
+  const cfgPubKey = config.get('oidc.publicKeyBase64')
+  const cfgPrivKey = config.get('oidc.privateKeyBase64')
+
+  if (cfgPubKey && cfgPrivKey) {
+    logger.info('loading signing keys from config')
+    return loadKeyPair(
+      Buffer.from(cfgPubKey, 'base64'),
+      Buffer.from(cfgPrivKey, 'base64')
+    )
+  }
+  logger.info('generating signing keys')
+  return generateRandomKeypair()
+}
 
 const oidc = {
   plugin: {
     name: 'oidc',
-    register: async (server) => {
-      // getOrCreateSharedKeypair reads/writes the cache, which requires the
-      // cache client's connection to be started - that only happens once
-      // server.initialize()/start() runs, so this must wait for onPreStart
-      // rather than resolving keys directly during plugin registration.
-      server.ext('onPreStart', async (srv) => {
-        const cfgPubKey = config.get('oidc.publicKeyBase64')
-        const cfgPrivKey = config.get('oidc.privateKeyBase64')
+    register: (server) => {
+      const keys = resolveKeys(server.logger)
+      server.decorate('server', 'keys', keys)
+      server.decorate('request', 'keys', keys)
 
-        let keys
-        if (cfgPubKey && cfgPrivKey) {
-          srv.logger.info('loading keys from config')
-          keys = loadKeyPair(
-            Buffer.from(cfgPubKey, 'base64'),
-            Buffer.from(cfgPrivKey, 'base64')
-          )
-        } else {
-          srv.logger.info('loading or generating shared keys')
-          keys = await getOrCreateSharedKeypair(srv)
-        }
-        srv.decorate('server', 'keys', keys)
-        srv.decorate('request', 'keys', keys)
-      })
-
-      // Sessions must outlive refresh tokens - once a refresh token's
-      // backing session is evicted, refreshing fails.
-      initSessionStore(server, oidcConfig.refreshTtl * 1000)
+      initSessionStore(server, oidcConfig.ttl * 1000)
 
       server.route([
         {
           method: 'GET',
-          path: `${oidcBasePath}/.well-known/openid-configuration`,
+          path: '/.well-known/openid-configuration',
           ...openIdConfigurationController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/.well-known/jwks.json`,
+          path: oidcConfig.jwksEndpoint,
           ...jwksController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/authorize`,
+          path: oidcConfig.authorizationEndpoint,
           ...authorizeController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/login`,
+          path: '/login',
           ...loginController
         },
         {
           method: 'POST',
-          path: `${oidcBasePath}/login`,
+          path: '/login',
           ...loginSubmitController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/organisations`,
+          path: '/organisations',
           ...showOrganisationPickerController
         },
         {
           method: 'POST',
-          path: `${oidcBasePath}/organisations`,
+          path: '/organisations',
           ...selectOrganisationController
         },
         {
           method: 'POST',
-          path: `${oidcBasePath}/token`,
+          path: oidcConfig.tokenEndpoint,
           ...tokenController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/user-info`,
-          ...userInfoController
-        },
-        {
-          method: 'GET',
-          path: `${oidcBasePath}/logout`,
+          path: oidcConfig.endSessionEndpoint,
           ...logoutController
         }
       ])

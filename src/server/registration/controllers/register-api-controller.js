@@ -17,7 +17,6 @@ import {
   storeRelationship
 } from '#/server/registration/helpers/new-relationship.js'
 import { findRelationship } from '#/server/registration/helpers/find-relationships.js'
-import { oidcBasePath } from '#/server/oidc/oidc-config.js'
 
 const registerApiController = {
   handler: async (request, h) => {
@@ -117,18 +116,18 @@ const registerApiController = {
         links: [
           {
             rel: 'self',
-            href: `${oidcBasePath}/API/register/${userId}`
+            href: `/API/register/${userId}`
           },
           {
             rel: 'expire',
-            href: `${oidcBasePath}/API/register/${userId}/expire`
+            href: `/API/register/${userId}/expire`
           }
         ]
       }
       return h
         .response(response)
         .code(201)
-        .header('Location', `${oidcBasePath}/API/register/${userId}`)
+        .header('Location', `/API/register/${userId}`)
     } catch (error) {
       request.logger.error('Error registering user: ' + error)
       const response = {

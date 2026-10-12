@@ -28,7 +28,7 @@ async function findUser(user, store) {
 
 // Temporary (ephemeral) registrations only - used to build the login page's
 // "available users" hint, which must never advertise permanent
-// (data/<env>/users.json) users' emails.
+// (USERS_FILE_PATH) users' emails.
 async function findTemporaryUsers(store) {
   const registrations = await store.listEphemeralRegistrations()
   return registrations.map((registration) => {

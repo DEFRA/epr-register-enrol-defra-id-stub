@@ -10,7 +10,7 @@ import { nunjucksConfig } from '#/config/nunjucks/nunjucks.js'
 import { requestTracing } from './plugins/request-tracing.js'
 import { requestLogger } from './plugins/request-logger.js'
 import { sessionCache } from './plugins/session-cache.js'
-import { getCacheEngine } from './common/helpers/session-cache/cache-engine.js'
+import { Engine as CatboxMemory } from '@hapi/catbox-memory'
 import { secureContext } from '@defra/hapi-secure-context'
 import { contentSecurityPolicy } from './plugins/content-security-policy.js'
 import { metrics } from '@defra/cdp-metrics'
@@ -47,7 +47,8 @@ export async function createServer() {
     cache: [
       {
         name: config.get('session.cache.name'),
-        engine: getCacheEngine(config.get('session.cache.engine'))
+        // In memory: the stub runs as a single instance.
+        engine: new CatboxMemory()
       }
     ],
     state: {

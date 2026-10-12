@@ -25,7 +25,6 @@ import {
   registrationPath,
   summaryPath
 } from '#/server/registration/helpers/registration-paths.js'
-import { oidcBasePath } from '#/server/oidc/oidc-config.js'
 
 function relationshipRoleItems(selectedRole = 'Employee') {
   return ['Agent', 'Employee', 'Citizen'].map((value) => ({
@@ -54,7 +53,7 @@ const addRelationshipController = {
 
     if (!registration) {
       request.logger.error({ userId }, 'Registration not found')
-      return h.redirect(oidcBasePath)
+      return h.redirect('/')
     }
 
     const validationResult = relationshipValidation.validate(payload, {
@@ -110,7 +109,7 @@ const showRelationshipListController = {
 
     if (!registration) {
       request.logger.error({ userId }, 'Registration not found')
-      return h.redirect(oidcBasePath)
+      return h.redirect('/')
     }
 
     let currentRelationship
@@ -192,7 +191,7 @@ const removeRelationshipController = {
 
     if (!registration) {
       request.logger.error({ userId }, 'Registration not found ')
-      return h.redirect(oidcBasePath)
+      return h.redirect('/')
     }
 
     const relationship = await findRelationship(
@@ -254,7 +253,7 @@ const makeCurrentRelationshipController = {
 
     if (!registration) {
       request.logger.error({ userId }, 'Registration not found ')
-      return h.redirect(oidcBasePath)
+      return h.redirect('/')
     }
 
     const relationship = await findRelationship(

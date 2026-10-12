@@ -1,5 +1,3 @@
-import { oidcBasePath } from '#/server/oidc/oidc-config.js'
-
 const oidcParamNames = [
   'client_id',
   'response_type',
@@ -32,7 +30,7 @@ const renderLoginPage = async (
   return h.view('oidc/views/login', {
     pageTitle: 'DEFRA ID Login',
     heading: 'DEFRA ID Login',
-    action: `${oidcBasePath}/login`,
+    action: `/login`,
     hiddenFields: buildHiddenFields(oidcParams),
     availableEmails: allUsers.map((user) => user.email),
     newRegistrationLink,

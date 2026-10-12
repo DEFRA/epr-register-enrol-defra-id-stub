@@ -1,58 +1,56 @@
 import { config } from '#/config/config.js'
 
-const oidcBasePath = config.get('oidc.basePath')
+const clientId = config.get('oidc.clientId')
+const callbackUrl = config.get('oidc.callbackUrl')
 
+// The stub has one client: the Operator Journey frontend
+// (epr-register-enrol-frontend). Its redirect and post-logout URIs are fixed
+// by that frontend's Defra ID code, so they are matched exactly.
 const oidcConfig = {
-  clientId: config.get('oidc.clientId'),
+  clientId,
   clientSecret: config.get('oidc.clientSecret'),
-  issuerBase: oidcBasePath,
-  authorizationEndpoint: `${oidcBasePath}/authorize`,
-  tokenEndpoint: `${oidcBasePath}/token`,
-  userinfoEndpoint: `${oidcBasePath}/userinfo`,
-  jwksEndpoint: `${oidcBasePath}/.well-known/jwks.json`,
-  discoveryEndpoint: `${oidcBasePath}/.well-known/openid-configuration`,
+  redirectUri: `${callbackUrl}/auth/operator/callback`,
+  postLogoutRedirectUri: `${callbackUrl}/auth/logout?userType=operator`,
 
-  openidScope: 'openid',
+  authorizationEndpoint: '/authorize',
+  tokenEndpoint: '/token',
+  jwksEndpoint: '/.well-known/jwks.json',
+  endSessionEndpoint: '/logout',
 
-  grantTypesSupported: [
-    'authorization_code',
-    'refresh_token',
-    'client_credentials'
-  ],
+  // The Operator Journey asks for "openid offline_access <client id>", as
+  // real Defra ID expects. offline_access is accepted, but no refresh token
+  // is issued: the Operator Journey never uses one.
+  scopesSupported: ['openid', 'offline_access', clientId],
   responseTypesSupported: ['code'],
+  grantTypesSupported: ['authorization_code'],
   subjectTypesSupported: ['public'],
-
   idTokenSigningAlgValuesSupported: ['RS256'],
-
-  scopesSupported: [
-    'openid',
-    'email',
-    'groups',
-    'profile',
-    'api://63983fc2-cfff-45bb-8ec2-959e21062b9a/cdp.user',
-    'offline_access',
-    'user.read'
-  ],
-
-  tokenEndpointAuthMethodsSupported: [
-    'client_secret_basic',
-    'client_secret_post'
-  ],
-
+  tokenEndpointAuthMethodsSupported: ['client_secret_post'],
+  codeChallengeMethodsSupported: ['S256'],
   claimsSupported: [
-    'sub',
-    'email',
-    'email_verified',
-    'preferred_username',
-    'phone_number',
-    'address',
-    'groups',
     'iss',
-    'aud'
+    'aud',
+    'sub',
+    'iat',
+    'nbf',
+    'exp',
+    'nonce',
+    'email',
+    'firstName',
+    'lastName',
+    'contactId',
+    'serviceId',
+    'uniqueReference',
+    'loa',
+    'aal',
+    'enrolmentCount',
+    'enrolmentRequestCount',
+    'currentRelationshipId',
+    'relationships',
+    'roles'
   ],
-  codeChallengeMethodsSupported: ['plain', 'S256'],
-  ttl: 3600, // seconds
-  refreshTtl: 3600 * 6
+
+  ttl: 3600 // seconds
 }
 
-export { oidcConfig, oidcBasePath }
+export { oidcConfig }

@@ -2,7 +2,9 @@ import Joi from 'joi'
 
 const loginValidation = Joi.object({
   user: Joi.string().optional(),
-  serviceId: Joi.string().optional(),
+  // The Operator Journey sends an empty serviceId when DEFRA_ID_SERVICE_ID
+  // is unset.
+  serviceId: Joi.string().allow('').optional(),
   client_id: Joi.string().required(),
   response_type: Joi.string().required(),
   redirect_uri: Joi.string().required(),

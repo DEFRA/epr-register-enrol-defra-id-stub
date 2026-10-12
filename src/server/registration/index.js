@@ -1,4 +1,3 @@
-import { oidcBasePath } from '#/server/oidc/oidc-config.js'
 import {
   showRegistrationController,
   registrationController,
@@ -29,82 +28,82 @@ const registration = {
       server.route([
         {
           method: 'GET',
-          path: `${oidcBasePath}/register`,
+          path: `/register`,
           ...showRegistrationController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/register/{userId}`,
+          path: `/register/{userId}`,
           ...showExistingRegistrationController
         },
         {
           method: 'POST',
-          path: `${oidcBasePath}/register`,
+          path: `/register`,
           ...registrationController
         },
         {
           method: 'POST',
-          path: `${oidcBasePath}/register/{userId}/update`,
+          path: `/register/{userId}/update`,
           ...updateRegistrationController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/register/{userId}/relationship`,
+          path: `/register/{userId}/relationship`,
           ...showRelationshipListController
         },
         {
           method: 'POST',
-          path: `${oidcBasePath}/register/{userId}/relationship`,
+          path: `/register/{userId}/relationship`,
           ...addRelationshipController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/register/{userId}/relationship/{relationshipId}/remove`,
+          path: `/register/{userId}/relationship/{relationshipId}/remove`,
           ...removeRelationshipController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/register/{userId}/relationship/{relationshipId}/current`,
+          path: `/register/{userId}/relationship/{relationshipId}/current`,
           ...makeCurrentRelationshipController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/register/{userId}/relationship/{relationshipId}/role-name`,
+          path: `/register/{userId}/relationship/{relationshipId}/role-name`,
           ...showAddRoleNameController
         },
         {
           method: 'POST',
-          path: `${oidcBasePath}/register/{userId}/relationship/{relationshipId}/role-name`,
+          path: `/register/{userId}/relationship/{relationshipId}/role-name`,
           ...addRoleNameController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/register/{userId}/relationship/{relationshipId}/role-name/remove`,
+          path: `/register/{userId}/relationship/{relationshipId}/role-name/remove`,
           ...removeRoleNameController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/register/{userId}/summary`,
+          path: `/register/{userId}/summary`,
           ...summaryRegistrationController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/API/register/{userId}`,
+          path: `/API/register/{userId}`,
           ...findRegistrationApiController
         },
         {
           method: 'POST',
-          path: `${oidcBasePath}/API/register`,
+          path: `/API/register`,
           ...registerApiController
         },
         {
           method: 'POST',
-          path: `${oidcBasePath}/API/register/{userId}/expire`,
+          path: `/API/register/{userId}/expire`,
           ...expireRegistrationApiController
         },
         {
           method: 'GET',
-          path: `${oidcBasePath}/register/{userId}/expire`,
+          path: `/register/{userId}/expire`,
           ...expireRegistrationController
         }
       ])

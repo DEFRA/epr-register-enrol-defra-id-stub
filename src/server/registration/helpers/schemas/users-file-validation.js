@@ -6,6 +6,7 @@ const usersFileValidation = Joi.array()
       userId: Joi.string().uuid().required(),
       email: Joi.string().email().required(),
       organisationId: Joi.string().optional(),
+      organisationName: Joi.string().optional(),
       loa: Joi.string().optional(),
       aal: Joi.string().optional(),
       enrolmentCount: Joi.number().integer().positive().optional(),
