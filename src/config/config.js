@@ -51,7 +51,7 @@ export const config = convict({
   serviceName: {
     doc: 'Applications Service Name',
     format: String,
-    default: 'epr-re-ex-defra-id-stub'
+    default: 'epr-register-enrol-defra-id-stub'
   },
   root: {
     doc: 'Project root',
@@ -186,7 +186,7 @@ export const config = convict({
     keyPrefix: {
       doc: 'Redis cache key prefix name used to isolate the cached results across multiple clients',
       format: String,
-      default: 'epr-re-ex-defra-id-stub:',
+      default: 'epr-register-enrol-defra-id-stub:',
       env: 'REDIS_KEY_PREFIX'
     },
     useSingleInstanceCache: {
@@ -275,7 +275,7 @@ export const config = convict({
     registrationsTableName: {
       doc: 'Registrations DynamoDB table name',
       format: String,
-      default: 'epr-re-ex-defra-id-stub-registrations',
+      default: 'epr-register-enrol-defra-id-stub-registrations',
       env: 'AWS_DYNAMODB_REGISTRATIONS_TABLE_NAME'
     }
   },
@@ -297,7 +297,7 @@ export const config = convict({
     basePath: {
       doc: 'the base path all oidc stubs will be served from',
       format: String,
-      default: '/epr-re-ex-defra-id-stub',
+      default: '/epr-register-enrol-defra-id-stub',
       env: 'OIDC_BASE_PATH'
     },
     clientId: {

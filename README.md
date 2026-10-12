@@ -1,8 +1,8 @@
-# epr-re-ex-defra-id-stub
+# epr-register-enrol-defra-id-stub
 
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_epr-re-ex-defra-id-stub&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=DEFRA_epr-re-ex-defra-id-stub)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_epr-re-ex-defra-id-stub&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=DEFRA_epr-re-ex-defra-id-stub)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_epr-re-ex-defra-id-stub&metric=coverage)](https://sonarcloud.io/summary/new_code?id=DEFRA_epr-re-ex-defra-id-stub)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_epr-register-enrol-defra-id-stub&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=DEFRA_epr-register-enrol-defra-id-stub)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_epr-register-enrol-defra-id-stub&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=DEFRA_epr-register-enrol-defra-id-stub)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_epr-register-enrol-defra-id-stub&metric=coverage)](https://sonarcloud.io/summary/new_code?id=DEFRA_epr-register-enrol-defra-id-stub)
 
 Core delivery platform Node.js Frontend Template.
 
@@ -39,7 +39,7 @@ Please install Node Version Manager [nvm](https://github.com/creationix/nvm)
 To use the correct version of Node.js for this application, via nvm:
 
 ```bash
-cd epr-re-ex-defra-id-stub
+cd epr-register-enrol-defra-id-stub
 nvm use
 ```
 
@@ -86,7 +86,7 @@ return await fetch(url, {
 
 ## DEFRA ID login stub
 
-This service stubs the DEFRA ID OIDC provider under `OIDC_BASE_PATH` (default `/epr-re-ex-defra-id-stub`), backed by
+This service stubs the DEFRA ID OIDC provider under `OIDC_BASE_PATH` (default `/epr-register-enrol-defra-id-stub`), backed by
 two kinds of user:
 
 ### Permanent users
@@ -99,7 +99,7 @@ their email is not listed on the login page's "available users" hint.
 ### Temporary registrations
 
 Created via the `/register` UI flow or the `POST /API/register` endpoint, and stored in DynamoDB
-(`AWS_DYNAMODB_REGISTRATIONS_TABLE_NAME`, default `epr-re-ex-defra-id-stub-registrations`) with a TTL
+(`AWS_DYNAMODB_REGISTRATIONS_TABLE_NAME`, default `epr-register-enrol-defra-id-stub-registrations`) with a TTL
 (`REGISTRATIONS_STORE_TTL`, default 3 days). Set `REGISTRATIONS_STORE_ENGINE=memory` to use an in-memory store
 instead (the default outside of `NODE_ENV=production`, useful when you don't have Floci running locally). Temporary
 users' emails are listed on the login page to make local testing easier.
@@ -180,18 +180,18 @@ git config --global core.autocrlf false
 
 > [!TIP]
 > For Apple Silicon users, you may need to add `--platform linux/amd64` to the `docker run` command to ensure
-> compatibility fEx: `docker build --platform=linux/arm64 --no-cache --tag epr-re-ex-defra-id-stub`
+> compatibility fEx: `docker build --platform=linux/arm64 --no-cache --tag epr-register-enrol-defra-id-stub`
 
 Build:
 
 ```bash
-docker build --target development --no-cache --tag epr-re-ex-defra-id-stub:development .
+docker build --target development --no-cache --tag epr-register-enrol-defra-id-stub:development .
 ```
 
 Run:
 
 ```bash
-docker run -p 3000:3000 epr-re-ex-defra-id-stub:development
+docker run -p 3000:3000 epr-register-enrol-defra-id-stub:development
 ```
 
 ### Production image
@@ -199,13 +199,13 @@ docker run -p 3000:3000 epr-re-ex-defra-id-stub:development
 Build:
 
 ```bash
-docker build --no-cache --tag epr-re-ex-defra-id-stub .
+docker build --no-cache --tag epr-register-enrol-defra-id-stub .
 ```
 
 Run:
 
 ```bash
-docker run -p 3000:3000 epr-re-ex-defra-id-stub
+docker run -p 3000:3000 epr-register-enrol-defra-id-stub
 ```
 
 ### Docker Compose

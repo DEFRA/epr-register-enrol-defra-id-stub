@@ -22,7 +22,7 @@ services:
 
   ################################################################################
 
-  epr-re-ex-defra-id-stub:
+  epr-register-enrol-defra-id-stub:
     build:
       context: ./
       target: development

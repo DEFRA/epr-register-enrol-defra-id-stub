@@ -6,7 +6,6 @@ on:
       - main
     types:
       - opened
-      - edited
       - reopened
       - synchronize
       - ready_for_review
@@ -15,14 +14,30 @@ jobs:
   pr-validator:
     name: Run Pull Request Checks
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test code and Create Test Coverage Reports
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
-      - run: npm install
-      - run: npm run format:check
-      - run: npm run lint
-      - run: npm test
-      - run: docker build .
+
+      - name: Security audit
+        run: npm run security-audit
+
+      - run: |
+          npm ci
+          npm run build:frontend
+          npm run format:check
+          npm run lint
+          npm test
+
+      - name: Test Docker Image Build
+        run: |
+          set +e
+          docker build --no-cache --tag epr-register-enrol-defra-id-stub .
+          exit $?
