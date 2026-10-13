@@ -88,15 +88,16 @@ The `id_token` claims are `iss`, `aud`, `sub`, `iat`, `nbf`, `exp`, `nonce`, `em
 | `STUB_EXTERNAL_URL`                            | `http://localhost:3000`        | app-config: `https://epr-register-enrol-defra-id-stub.test.cdp-int.defra.cloud` |
 | `STUB_INTERNAL_URL`                            | `STUB_EXTERNAL_URL`            | app-config: same as above                                                       |
 | `CALLBACK_OJ_URL`                              | `http://localhost:3000`        | app-config: `https://epr-register-enrol-frontend.test.cdp-int.defra.cloud`      |
-| `OJ_CLIENT_ID`                                 | `epr-register-enrol-frontend`  | portal secret                                                                   |
-| `OJ_CLIENT_SECRET`                             | `operator-journey-stub-secret` | portal secret                                                                   |
+| `OJ_CLIENT_ID`                                 | `epr-register-enrol-frontend`  | default                                                                         |
+| `OJ_CLIENT_SECRET`                             | `operator-journey-stub-secret` | default                                                                         |
 | `USERS_FILE_PATH`                              | unset (no permanent users)     | unset                                                                           |
 | `REGISTRATIONS_STORE_TTL`                      | `259200000` (3 days)           | default                                                                         |
 | `OIDC_PUBLIC_KEY_B64` / `OIDC_PRIVATE_KEY_B64` | unset (key pair made at boot)  | unset                                                                           |
 | `OIDC_SHOW_LOGIN`                              | `true`                         | default                                                                         |
 
 `OJ_CLIENT_ID` and `OJ_CLIENT_SECRET` must match the Operator Journey's `DEFRA_ID_CLIENT_ID` and
-`DEFRA_ID_CLIENT_SECRET`.
+`DEFRA_ID_CLIENT_SECRET`. On test both sides use the stub's defaults, set in plain app-config: the
+stub's registration is open, so the secret protects nothing, and the values are already public in this repo.
 
 ## Users
 
