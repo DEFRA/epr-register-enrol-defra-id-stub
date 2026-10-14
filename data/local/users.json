@@ -1,0 +1,20 @@
+[
+  {
+    "userId": "c84ee413-d427-43bd-9040-3219e413e4f9",
+    "email": "newdev.recycling@test.gov.uk",
+    "organisationId": "50001",
+    "organisationName": "NEWDEV RECYCLING LIMITED"
+  },
+  {
+    "userId": "60be23d7-d41e-40aa-afcd-151cc1048637",
+    "email": "beta.recycling@test.gov.uk",
+    "organisationId": "50002",
+    "organisationName": "Beta Recycling Co"
+  },
+  {
+    "userId": "919a755b-7d69-4761-bc2b-7cc906fe092d",
+    "email": "delta.green@test.gov.uk",
+    "organisationId": "50003",
+    "organisationName": "Delta Green Ltd"
+  }
+]

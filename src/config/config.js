@@ -8,6 +8,8 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const fourHoursMs = 14400000
 const oneWeekMs = 604800000
+const oneDayMs = 86400000
+const threeDaysMs = oneDayMs * 3
 
 const isProduction = process.env.NODE_ENV === 'production'
 const isTest = process.env.NODE_ENV === 'test'
@@ -115,12 +117,6 @@ export const config = convict({
   },
   session: {
     cache: {
-      engine: {
-        doc: 'backend cache is written to',
-        format: ['redis', 'memory'],
-        default: isProduction ? 'redis' : 'memory',
-        env: 'SESSION_CACHE_ENGINE'
-      },
       name: {
         doc: 'server side session cache name',
         format: String,
@@ -156,45 +152,6 @@ export const config = convict({
       }
     }
   },
-  redis: {
-    host: {
-      doc: 'Redis cache host',
-      format: String,
-      default: '127.0.0.1',
-      env: 'REDIS_HOST'
-    },
-    username: {
-      doc: 'Redis cache username',
-      format: String,
-      default: '',
-      env: 'REDIS_USERNAME'
-    },
-    password: {
-      doc: 'Redis cache password',
-      format: '*',
-      default: '',
-      sensitive: true,
-      env: 'REDIS_PASSWORD'
-    },
-    keyPrefix: {
-      doc: 'Redis cache key prefix name used to isolate the cached results across multiple clients',
-      format: String,
-      default: 'epr-register-enrol-defra-id-stub:',
-      env: 'REDIS_KEY_PREFIX'
-    },
-    useSingleInstanceCache: {
-      doc: 'Connect to a single instance of redis instead of a cluster.',
-      format: Boolean,
-      default: !isProduction,
-      env: 'USE_SINGLE_INSTANCE_CACHE'
-    },
-    useTLS: {
-      doc: 'Connect to redis using TLS',
-      format: Boolean,
-      default: isProduction,
-      env: 'REDIS_TLS'
-    }
-  },
   nunjucks: {
     watch: {
       doc: 'Reload templates when they are changed.',
@@ -213,6 +170,76 @@ export const config = convict({
       format: String,
       default: 'x-cdp-request-id',
       env: 'TRACING_HEADER'
+    }
+  },
+  usersFile: {
+    doc: 'Optional JSON file of permanent stub users (userId, email, organisationId, organisationName). Unset means no permanent users: testers register their own.',
+    format: String,
+    nullable: true,
+    default: null,
+    env: 'USERS_FILE_PATH'
+  },
+  registrationsStore: {
+    ttl: {
+      doc: 'How long a registration made through the stub is kept, in milliseconds. Registrations are held in memory and are lost when the stub restarts.',
+      format: Number,
+      default: threeDaysMs,
+      env: 'REGISTRATIONS_STORE_TTL'
+    }
+  },
+  stub: {
+    externalUrl: {
+      doc: 'Base URL browsers use to reach the stub. It is also the issuer, so it must match the iss the Operator Journey frontend expects.',
+      format: String,
+      default: 'http://localhost:3000',
+      env: 'STUB_EXTERNAL_URL'
+    },
+    internalUrl: {
+      doc: 'Base URL the Operator Journey frontend server uses for the token endpoint and the JWKS. Defaults to STUB_EXTERNAL_URL; set it when the frontend reaches the stub by a different host (for example inside Docker Compose).',
+      format: String,
+      nullable: true,
+      default: null,
+      env: 'STUB_INTERNAL_URL'
+    }
+  },
+  oidc: {
+    clientId: {
+      doc: "The Operator Journey frontend's client id (its DEFRA_ID_CLIENT_ID). The only client the stub accepts.",
+      format: String,
+      default: 'epr-register-enrol-frontend',
+      env: 'OJ_CLIENT_ID'
+    },
+    clientSecret: {
+      doc: "The Operator Journey frontend's client secret (its DEFRA_ID_CLIENT_SECRET).",
+      format: String,
+      default: 'operator-journey-stub-secret',
+      sensitive: true,
+      env: 'OJ_CLIENT_SECRET'
+    },
+    callbackUrl: {
+      doc: "The Operator Journey frontend's public base URL (its AUTH_CALLBACK_BASE_URL). The redirect and post-logout URIs are built from it.",
+      format: String,
+      default: 'http://localhost:3000',
+      env: 'CALLBACK_OJ_URL'
+    },
+    publicKeyBase64: {
+      doc: 'Base64-encoded public signing key (PEM). Optional: without it a key pair is generated at boot.',
+      format: String,
+      default: undefined,
+      env: 'OIDC_PUBLIC_KEY_B64'
+    },
+    privateKeyBase64: {
+      doc: 'Base64-encoded private signing key (PEM). Set together with OIDC_PUBLIC_KEY_B64.',
+      format: String,
+      default: undefined,
+      sensitive: true,
+      env: 'OIDC_PRIVATE_KEY_B64'
+    },
+    showLogin: {
+      doc: 'if set, shows login page, else it auto logs in as admin',
+      format: Boolean,
+      default: true,
+      env: 'OIDC_SHOW_LOGIN'
     }
   }
 })

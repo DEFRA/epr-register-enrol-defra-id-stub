@@ -1,196 +1,157 @@
 # epr-register-enrol-defra-id-stub
 
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_epr-register-enrol-defra-id-stub&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=DEFRA_epr-register-enrol-defra-id-stub)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_epr-register-enrol-defra-id-stub&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=DEFRA_epr-register-enrol-defra-id-stub)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_epr-register-enrol-defra-id-stub&metric=coverage)](https://sonarcloud.io/summary/new_code?id=DEFRA_epr-register-enrol-defra-id-stub)
+A Defra ID OIDC stub for the EPR Register **Operator Journey** frontend
+([epr-register-enrol-frontend](https://github.com/DEFRA/epr-register-enrol-frontend)). It lets testers sign in to the
+Operator Journey through its real Defra ID code path (authorization code + PKCE S256, a signed `id_token` checked
+against the JWKS, issuer, audience and nonce, and RP-initiated logout) without real Defra ID accounts.
 
-Core delivery platform Node.js Frontend Template.
+It runs on CDP **test** and locally (Docker Compose). It is forked from
+[DEFRA/epr-re-ex-defra-id-stub](https://github.com/DEFRA/epr-re-ex-defra-id-stub), with its history kept.
 
-- [Requirements](#requirements)
-  - [Node.js](#nodejs)
-- [Server-side Caching](#server-side-caching)
-- [Redis](#redis)
-- [Local Development](#local-development)
-  - [Setup](#setup)
-  - [Development](#development)
-  - [Production](#production)
-  - [Npm scripts](#npm-scripts)
-  - [Update dependencies](#update-dependencies)
-  - [Formatting](#formatting)
-    - [Windows prettier issue](#windows-prettier-issue)
-- [Docker](#docker)
-  - [Development image](#development-image)
-  - [Production image](#production-image)
-  - [Docker Compose](#docker-compose)
-  - [Dependabot](#dependabot)
-  - [SonarCloud](#sonarcloud)
+- [How the Operator Journey uses it](#how-the-operator-journey-uses-it)
+- [Signing in on CDP test](#signing-in-on-cdp-test)
+- [Endpoints](#endpoints)
+- [Configuration](#configuration)
+- [Users](#users)
+- [Deploy notes](#deploy-notes)
+- [Local development](#local-development)
 - [Licence](#licence)
-  - [About the licence](#about-the-licence)
 
-## Requirements
+## How the Operator Journey uses it
 
-### Node.js
+The Operator Journey chooses its login with `AUTH_STUB_ENABLED`:
 
-Please install Node Version Manager [nvm](https://github.com/creationix/nvm)
+| `AUTH_STUB_ENABLED` | `DEFRA_ID_DISCOVERY_URL` / `DEFRA_ID_CLIENT_ID` set | Login                                                                         |
+| ------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `true`              | no                                                  | The Operator Journey's built-in stub chooser only                             |
+| `true`              | yes                                                 | The stub chooser, plus a **Sign in with Defra ID** button that uses this stub |
+| `false`             | yes                                                 | Defra ID (this stub) is the only login                                        |
 
-To use the correct version of Node.js for this application, via nvm:
+To point the Operator Journey at the stub, set:
 
-```bash
-cd epr-register-enrol-defra-id-stub
-nvm use
-```
+| Operator Journey variable | Value                                                         |
+| ------------------------- | ------------------------------------------------------------- |
+| `DEFRA_ID_DISCOVERY_URL`  | `<stub URL>/.well-known/openid-configuration`                 |
+| `DEFRA_ID_CLIENT_ID`      | the stub's `OJ_CLIENT_ID`                                     |
+| `DEFRA_ID_CLIENT_SECRET`  | the stub's `OJ_CLIENT_SECRET`                                 |
+| `AUTH_CALLBACK_BASE_URL`  | the stub's `CALLBACK_OJ_URL` (the Operator Journey's own URL) |
 
-## Server-side Caching
+### Organisation access
 
-We use Catbox for server-side caching. By default the service will use CatboxRedis when deployed and CatboxMemory for
-local development.
-You can override the default behaviour by setting the `SESSION_CACHE_ENGINE` environment variable to either `redis` or
-`memory`.
+The Operator Journey lets an operator into a Re-Ex organisation only when one of the user's Defra ID `relationships`
+has the Defra organisation id that Re-Ex links to that organisation. Each relationship in the `id_token` is
+`relationshipId:organisationId:organisationName:0:relationshipRole:0`, and the Operator Journey reads the
+`organisationId`. So a stub user needs a relationship whose **organisation ID** is the linked Defra organisation id.
 
-Please note: CatboxMemory (`memory`) is _not_ suitable for production use! The cache will not be shared between each
-instance of the service and it will not persist between restarts.
+Users sign in to the Operator Journey and to Re-Ex separately: there is no single sign-on between them.
 
-## Redis
+## Signing in on CDP test
 
-Redis is an in-memory key-value store. Every instance of a service has access to the same Redis key-value store similar
-to how services might have a database (or MongoDB). All frontend services are given access to a namespaced prefixed that
-matches the service name. e.g. `my-service` will have access to everything in Redis that is prefixed with `my-service`.
+1. Find the Defra organisation id that Re-Ex has linked to the organisation you want to test (the Re-Ex
+   organisation's `linkedDefraOrganisation.orgId`; the Operator Journey backend reads it through
+   `GET /api/v1/organisations/{id}/defra-link`).
+2. Open the Operator Journey on test, choose **Sign in with Defra ID**, then **New registration** on the stub's login
+   page.
+3. Enter the user's details, then add a relationship: set **Organisation ID** to the linked Defra organisation id,
+   with any organisation name and role.
+4. Finish the registration and sign in. The stub returns you to the Operator Journey signed in as that user.
 
-If your service does not require a session cache to be shared between instances or if you don't require Redis, you can
-disable setting `SESSION_CACHE_ENGINE=false` or changing the default value in `src/config/index.js`.
+Registrations are kept in memory for `REGISTRATIONS_STORE_TTL` (3 days by default) and are lost when the stub
+restarts or is redeployed. Sign-in is email only (no password). A registered user can sign in again from the login
+page by email.
 
-## Proxy
+Journey tests can create users without the UI: `POST /API/register` takes a JSON registration (`email`, `firstName`,
+`lastName`, `loa`, `enrolmentCount`, `enrolmentRequestCount` and `relationships` with `organisationId`,
+`organisationName` and `relationshipRole`), and `/authorize?...&user=<email>` signs that user straight in.
 
-We are using forward-proxy which is set up by default. Services are automatically configured with the proxy environment variables when deployed.
+## Endpoints
 
-Node.js 24 uses these variables to route outbound HTTP(S) requests through the proxy:
+| Endpoint                                 | Purpose                                                                                                                                                                                                                                                                                                              |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /.well-known/openid-configuration`  | Discovery. The issuer, `authorization_endpoint` and `end_session_endpoint` use `STUB_EXTERNAL_URL`; `token_endpoint` and `jwks_uri` use `STUB_INTERNAL_URL`. Only what is implemented is advertised.                                                                                                                 |
+| `GET /.well-known/jwks.json`             | The public RS256 signing key.                                                                                                                                                                                                                                                                                        |
+| `GET /authorize`                         | Accepts only the Operator Journey: exact `client_id` and `redirect_uri` (`${CALLBACK_OJ_URL}/auth/operator/callback`), `response_type=code`, the scopes `openid`, `offline_access` and the bare client id, and PKCE `S256`. It stores `nonce`, `serviceId`, the PKCE challenge and the `redirect_uri` with the code. |
+| `GET`/`POST /login`, `/organisations`    | The email login page and the organisation picker (shown when a user has more than one relationship).                                                                                                                                                                                                                 |
+| `POST /token`                            | `client_secret_post` only. Codes are single use and bound to the client and `redirect_uri`; PKCE is verified. Returns `access_token` and an `id_token` with the `/authorize` nonce. Errors are RFC 6749 JSON (`invalid_client`, `invalid_grant`, `unsupported_grant_type`). No refresh tokens.                       |
+| `GET /logout`                            | End session. Redirects only to `${CALLBACK_OJ_URL}/auth/logout?userType=operator`, by exact match.                                                                                                                                                                                                                   |
+| `/register/...`, `POST /API/register...` | Registration UI and API.                                                                                                                                                                                                                                                                                             |
+| `GET /health`                            | CDP health check.                                                                                                                                                                                                                                                                                                    |
 
-NODE_USE_ENV_PROXY=1
-HTTPS_PROXY=...
-NO_PROXY=...
+The `id_token` claims are `iss`, `aud`, `sub`, `iat`, `nbf`, `exp`, `nonce`, `email`, `firstName`, `lastName`,
+`contactId`, `serviceId` (echoed from `/authorize`), `uniqueReference`, `loa`, `aal`, `enrolmentCount`,
+`enrolmentRequestCount`, `currentRelationshipId`, `relationships` and `roles`.
 
-No additional proxy configuration is required in the service.
+## Configuration
 
-## Local Development
+| Variable                                       | Default                        | Set on CDP test                                                                 |
+| ---------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------- |
+| `STUB_EXTERNAL_URL`                            | `http://localhost:3000`        | app-config: `https://epr-register-enrol-defra-id-stub.test.cdp-int.defra.cloud` |
+| `STUB_INTERNAL_URL`                            | `STUB_EXTERNAL_URL`            | app-config: same as above                                                       |
+| `CALLBACK_OJ_URL`                              | `http://localhost:3000`        | app-config: `https://epr-register-enrol-frontend.test.cdp-int.defra.cloud`      |
+| `OJ_CLIENT_ID`                                 | `epr-register-enrol-frontend`  | default                                                                         |
+| `OJ_CLIENT_SECRET`                             | `operator-journey-stub-secret` | default                                                                         |
+| `USERS_FILE_PATH`                              | unset (no permanent users)     | unset                                                                           |
+| `REGISTRATIONS_STORE_TTL`                      | `259200000` (3 days)           | default                                                                         |
+| `OIDC_PUBLIC_KEY_B64` / `OIDC_PRIVATE_KEY_B64` | unset (key pair made at boot)  | unset                                                                           |
+| `OIDC_SHOW_LOGIN`                              | `true`                         | default                                                                         |
 
-### Setup
+`OJ_CLIENT_ID` and `OJ_CLIENT_SECRET` must match the Operator Journey's `DEFRA_ID_CLIENT_ID` and
+`DEFRA_ID_CLIENT_SECRET`. On test both sides use the stub's defaults, set in plain app-config: the
+stub's registration is open, so the secret protects nothing, and the values are already public in this repo.
 
-Install application dependencies:
+## Users
+
+- **Registered users** are created through the registration UI or `POST /API/register` and kept in memory.
+- **Permanent users** load from `USERS_FILE_PATH` when it is set. [`data/local/users.json`](data/local/users.json)
+  holds local users whose relationships match the organisations the Operator Journey backend's local Re-Ex stub
+  serves (it links each Re-Ex organisation to the Defra organisation with the same id):
+
+  | Email                          | Organisation ID | Organisation             |
+  | ------------------------------ | --------------- | ------------------------ |
+  | `newdev.recycling@test.gov.uk` | `50001`         | NEWDEV RECYCLING LIMITED |
+  | `beta.recycling@test.gov.uk`   | `50002`         | Beta Recycling Co        |
+  | `delta.green@test.gov.uk`      | `50003`         | Delta Green Ltd          |
+
+  Permanent users' emails are not listed on the login page.
+
+## Deploy notes
+
+- Run **one instance**. Sessions, authorization codes, registrations and the signing key are held in memory.
+- A restart or redeploy loses registrations and publishes a new signing key. The Operator Journey refetches the JWKS
+  when it sees an unknown key id.
+- Deploy to **test** only. Never deploy it to production.
+
+## Local development
+
+### With the whole stack
+
+The [epr-register-enrol](https://github.com/DEFRA/epr-register-enrol) superproject's `compose.yml` runs this stub
+behind the `defra-id-stub` profile and wires the Operator Journey frontend to it. See its README.
+
+### On its own
+
+Requires Node.js (see [.nvmrc](.nvmrc)).
 
 ```bash
 npm install
-```
-
-### Git hooks
-
-Install git hooks (optional)
-
-```bash
-npm run git:hooks
-```
-
-### Development
-
-To run the application in `development` mode run:
-
-```bash
+cp .env.example .env
 npm run dev
 ```
 
-### Production
-
-To mimic the application running in `production` mode locally run:
-
-```bash
-npm start
-```
+Or with Docker: `docker compose up --build`. Both serve the stub at `http://localhost:3200` with the local users.
+Point a locally running Operator Journey at `http://localhost:3200/.well-known/openid-configuration`.
 
 ### Npm scripts
 
-All available Npm scripts can be seen in [package.json](./package.json)
-To view them in your command line run:
+- `npm run dev`: run with nodemon
+- `npm test`: run the tests with coverage
+- `npm run lint`, `npm run format:check`: the checks CI runs
+- `npm run security-audit`: `npm audit --audit-level=critical`
 
-```bash
-npm run
-```
+### Docker
 
-### Update dependencies
-
-To update dependencies use [npm-check-updates](https://github.com/raineorshine/npm-check-updates):
-
-> The following script is a good start. Check out all the options on
-> the [npm-check-updates](https://github.com/raineorshine/npm-check-updates)
-
-```bash
-ncu --interactive --format group
-```
-
-### Formatting
-
-#### Windows prettier issue
-
-If you are having issues with formatting of line breaks on Windows update your global git config by running:
-
-```bash
-git config --global core.autocrlf false
-```
-
-## Docker
-
-### Development image
-
-> [!TIP]
-> For Apple Silicon users, you may need to add `--platform linux/amd64` to the `docker run` command to ensure
-> compatibility fEx: `docker build --platform=linux/arm64 --no-cache --tag epr-register-enrol-defra-id-stub`
-
-Build:
-
-```bash
-docker build --target development --no-cache --tag epr-register-enrol-defra-id-stub:development .
-```
-
-Run:
-
-```bash
-docker run -p 3000:3000 epr-register-enrol-defra-id-stub:development
-```
-
-### Production image
-
-Build:
-
-```bash
-docker build --no-cache --tag epr-register-enrol-defra-id-stub .
-```
-
-Run:
-
-```bash
-docker run -p 3000:3000 epr-register-enrol-defra-id-stub
-```
-
-### Docker Compose
-
-A local environment with:
-
-- Floci (replacing Localstack) for AWS services (S3, SQS)
-- Redis
-- MongoDB
-- This service.
-- A commented out backend example.
-
-```bash
-docker compose up --build -d
-```
-
-### Dependabot
-
-We have added an example dependabot configuration file to the repository. You can enable it by renaming
-the [.github/example.dependabot.yml](.github/example.dependabot.yml) to `.github/dependabot.yml`
-
-### SonarCloud
-
-Instructions for setting up SonarCloud can be found in [sonar-project.properties](./sonar-project.properties).
+- Development image: `docker build --target development --tag epr-register-enrol-defra-id-stub:development .`
+- Production image: `docker build --tag epr-register-enrol-defra-id-stub .`
 
 ## Licence
 
